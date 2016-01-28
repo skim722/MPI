@@ -12,6 +12,38 @@
  *                  Implement your solutions here!                   *
  *********************************************************************/
 
+/*
+void tree_find_solutions(SolutionStore &sol_store, std::vector<unsigned int> &current_solution, unsigned int current_level, unsigned int max_level) {
+    if (current_level == max_level) {
+        sol_store.add_solution(current_solution);
+        return;
+
+    } else {
+        for (int col=0; col < current_solution.size(); ++col) {
+            current_solution[current_level] = col;
+            if (has_no_collision(current_solution, current_level)) {
+                tree_find_solutions(sol_store, current_solution, current_level+1, max_level);
+            }
+        }
+    }
+}
+*/
+
+int abs_diff(int a, int b) {
+    int c = a - b;
+    return c < 0 ? -c : c;
+}
+
+bool has_no_collision(std::vector<unsigned int> &current_solution, unsigned int current_level) {
+    for (int col=0; col < current_level; ++col) {
+        if (current_solution[col] == current_solution[current_level]) {
+            return false;
+        } else if ((current_level - col) == abs_diff(current_solution[current_level], current_solution[col])) {
+            return false;
+        }
+    } return true;
+}
+
 /**
  * @brief   Generates the solutions for the n-queen problem in a specified range.
  *
@@ -44,8 +76,19 @@ void nqueens_by_level(std::vector<unsigned int> pos, unsigned int start_level,
                       void (* const success_func)(std::vector<unsigned int>&)) {
 
     // TODO!
-}
+    if (start_level == max_level) {
+        success_func(pos);
+        return;
 
+    } else {
+        for (int col=0; col < pos.size(); ++col) {
+            pos[start_level] = col;
+            if (has_no_collision(pos, start_level)) {
+                nqueens_by_level(pos, start_level+1, max_level, success_func);
+            }
+        }
+    }
+}
 
 
 
