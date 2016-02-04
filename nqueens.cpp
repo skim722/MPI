@@ -13,6 +13,9 @@
  *********************************************************************/
 
 /*
+
+// Sample implementation
+
 void tree_find_solutions(SolutionStore &sol_store, std::vector<unsigned int> &current_solution, unsigned int current_level, unsigned int max_level) {
     if (current_level == max_level) {
         sol_store.add_solution(current_solution);
@@ -75,7 +78,6 @@ void nqueens_by_level(std::vector<unsigned int> pos, unsigned int start_level,
                       unsigned int max_level,
                       void (* const success_func)(std::vector<unsigned int>&)) {
 
-    // TODO!
     if (start_level == max_level) {
         success_func(pos);
         return;
