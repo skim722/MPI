@@ -54,7 +54,12 @@ void master_solution_func(std::vector<unsigned int>& solution) {
  */
 std::vector<unsigned int> master_main(unsigned int n, unsigned int k) {
     // TODO: send parameters (n,k) to workers via broadcast (MPI_Bcast)
-
+      int rank;
+      MPI_Init(&argc,&argv);
+      MPI_Comm_rank (MPI_COMM_WORLD,&rank);
+      if(rank==0){
+         MPI_BCast(&n,1,MPI_INT,0,MPI_COMM_WORLD);
+      }
     // allocate the vector for the solution permutations
     std::vector<unsigned int> pos(n);
 
@@ -65,6 +70,7 @@ std::vector<unsigned int> master_main(unsigned int n, unsigned int k) {
     // TODO: get remaining solutions from workers and send termination messages
 
     // TODO: return all combined solutions
+    return MPI_Finalize();
 }
 
 /**
