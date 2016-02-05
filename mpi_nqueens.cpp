@@ -16,6 +16,7 @@
 #include <vector>
 #include "nqueens.h"
 
+#define TERMINATION_MSG 42
 
 /**
  * @brief The master's call back function for each found solution.
@@ -35,6 +36,12 @@
 void master_solution_func(std::vector<unsigned int>& solution) {
     // TODO: receive solutions or work-requests from a worker and then
     //       proceed to send this partial solution to that worker.
+
+    // Needs to be a NON-blocking receive/send
+    // MPI_Recv(void* buf, int count, MPI_Datatype type, int source, int tag, MPI_Comm comm, MPI_Status* status);
+    // MPI_Send(void* buf, int count, MPI_Datatype type, int dest, int tag, MPI_Comm comm);
+
+    // http://stackoverflow.com/questions/10490983/mpi-slave-processes-hang-when-there-is-no-more-work
 }
 
 
@@ -54,12 +61,19 @@ void master_solution_func(std::vector<unsigned int>& solution) {
  */
 std::vector<unsigned int> master_main(unsigned int n, unsigned int k) {
     // TODO: send parameters (n,k) to workers via broadcast (MPI_Bcast)
+<<<<<<< HEAD
       int rank;
       MPI_Init(&argc,&argv);
       MPI_Comm_rank (MPI_COMM_WORLD,&rank);
       if(rank==0){
          MPI_BCast(&n,1,MPI_INT,0,MPI_COMM_WORLD);
       }
+=======
+    // MPI_Bcast(void* data, int count, MPI_Datatype datatype, int root, MPI_Comm communicator)
+    MPI_Bcast(&n, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&k, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+
+>>>>>>> 1ffdcec8f76135b6909ece5a3a8a064ce3d7969f
     // allocate the vector for the solution permutations
     std::vector<unsigned int> pos(n);
 
@@ -72,6 +86,23 @@ std::vector<unsigned int> master_main(unsigned int n, unsigned int k) {
     // TODO: return all combined solutions
     return MPI_Finalize();
 }
+
+
+// stores all local solutions.
+struct WorkerSolutionStore {
+    // store solutions in a static member variable
+    static std::vector<unsigned int>& solutions() {
+        static std::vector<unsigned int> sols;
+        return sols;
+    }
+    static void add_solution(const std::vector<unsigned int>& sol) {
+        // add solution to static member
+        solutions().insert(solutions().end(), sol.begin(), sol.end());
+    }
+    static void clear_solutions() {
+        solutions().clear();
+    }
+};
 
 /**
  * @brief The workers' call back function for each found solution.
@@ -86,6 +117,7 @@ std::vector<unsigned int> master_main(unsigned int n, unsigned int k) {
  */
 void worker_solution_func(std::vector<unsigned int>& solution) {
     // TODO: save the solution into a local cache
+    WorkerSolutionStore::add_solution(solution);
 }
 
 /**
@@ -101,11 +133,42 @@ void worker_solution_func(std::vector<unsigned int>& solution) {
  */
 void worker_main() {
     unsigned int n, k;
+
+    // Get rank
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
     // TODO receive the parameters `n` and `k` from the master process via MPI_Bcast
+    MPI_Bcast(&n, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&k, 1, MPI_UNSIGNED, 0, MPI_COMM_WORLD);
 
     // TODO: implement the worker's functions: receive partially completed solutions,
     //       calculate all possible solutions starting with these queen positions
     //       and send solutions to the master process. then ask for more work.
+    while (true) {
+        // Prepare the buffer
+        std::vector<unsigned int> partial_solution(n);
+        MPI_Status stat;
+
+        // Receive the buffer of size n and begin computation
+        // MPI_Recv(void* data, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm communicator, MPI_Status* status)
+        MPI_Recv(&partial_solution[0], n, MPI_UNSIGNED, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &stat);
+
+        // If we get the termination signal, exit the loop
+        if (stat.MPI_TAG == TERMINATION_MSG) {
+            printf("Process %d got the termination signal; exiting work loop.\n", rank);
+            break;
+        }
+
+        // Else, compute (saves solution to a long vector cache)
+        nqueens_by_level(partial_solution, k, n, &worker_solution_func);
+        std::vector<unsigned int> &vec_buffer = WorkerSolutionStore::solutions();
+        unsigned int buffer_size = vec_buffer.size();
+
+        // Send the solutions buffer size (m solutions means the solutions vector is of size m x n), so the recipient knows how much to receive
+        MPI_Send(&buffer_size, 1, MPI_UNSIGNED, 0, 528492, MPI_COMM_WORLD);
+        MPI_Send(&vec_buffer[0], buffer_size, MPI_UNSIGNED, 0, 528493, MPI_COMM_WORLD);
+    }
 }
 
 
