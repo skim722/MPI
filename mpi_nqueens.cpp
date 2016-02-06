@@ -61,6 +61,10 @@ void master_solution_func(std::vector<unsigned int>& solution) {
     unsigned int buffer_size;
     MPI_Status stat;
 
+    // SK
+    // if (receive sol(1,n) from proc p) Send partial_sol(1,k) to p
+    // else if(receive work request from proc p) Send partial_sol(1,k) to p
+
     // First receive a message from any source.
     // By the symmetry of the code, the first message will either be WORKER_READY or WORK_DONE_MSG_N, and buffer will be size 1
     MPI_Recv(&buffer_size, 1, MPI_UNSIGNED, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &stat);
@@ -79,6 +83,18 @@ void master_solution_func(std::vector<unsigned int>& solution) {
 
     // Send new work to the SAME worker
     MPI_Send(&solution[0], solution.size(), MPI_UNSIGNED, stat.MPI_SOURCE, NEW_WORK_MSG, MPI_COMM_WORLD);
+
+    // SK
+    // http://stackoverflow.com/questions/10490983/mpi-slave-processes-hang-when-there-is-no-more-work
+
+    /*MPI_Status stat;
+    for(int i = 1; i < num_procs; i++){
+        MPI_Recv(&buffer_size, 1, MPI_UNSIGNED, i, MPI_ANY_TAG, MPI_COMM_WORLD, &stat);
+        if (stat.MPI_TAG == 528492) {
+             MPI_Send(&partial_solution[0], n, MPI_UNSIGNED, i, MPI_ANY_TAG, MPI_COMM_WORLD);
+
+        }
+    }*/
 }
 
 
@@ -110,6 +126,8 @@ std::vector<unsigned int> master_main(unsigned int n, unsigned int k) {
     nqueens_by_level(pos, 0, k, &master_solution_func);
 
     // TODO: get remaining solutions from workers and send termination messages
+    // MPI_Recv(void* buf, int count, MPI_Datatype type, int source, int tag, MPI_Comm comm, MPI_Status* status);
+
 
 
     // Send termination message
@@ -208,6 +226,8 @@ void worker_main() {
         // Send the solutions buffer size (m solutions means the solutions vector is of size m x n), so the recipient knows how much to receive
         MPI_Send(&buffer_size, 1, MPI_UNSIGNED, 0, WORK_DONE_MSG_N, MPI_COMM_WORLD);
         MPI_Send(&vec_buffer[0], buffer_size, MPI_UNSIGNED, 0, WORK_DONE_MSG_BUFFER, MPI_COMM_WORLD);
+        // MPI_Send(&buffer_size, 1, MPI_UNSIGNED, 0, 528492, MPI_COMM_WORLD);
+        // MPI_Send(&vec_buffer[0], buffer_size, MPI_UNSIGNED, 0, 528493, MPI_COMM_WORLD); //ask more work tag: 528492 528493
     }
 }
 
