@@ -10,10 +10,10 @@
  */
 
 #include <mpi.h>
+#include <numeric>
 
 // returns the value of the digit starting at offset `offset` and containing `k` bits
 #define GET_DIGIT(key, k, offset) ((key) >> (offset)) & ((1 << (k)) - 1)
-
 
 /**
  * @brief   Parallel distributed radix sort.
