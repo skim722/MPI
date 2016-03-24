@@ -29,13 +29,13 @@ void clean_bucket_table(vector<vector<unsigned int>> &bucket_table) {
 
 template <typename T>
 void prepopulate_bucket_table(vector<vector<unsigned int>> &bucket_table,
-                       vector<T> &items,
+                       vector<T> &lst,
                        unsigned int (*key_func)(const T&),
                        unsigned int k,
                        unsigned int offset) {
 
-    for (int i=0; i < items.size(); ++i) {
-        unsigned int key = key_func(items[i]);
+    for (int i=0; i < lst.size(); ++i) {
+        unsigned int key = key_func(lst[i]);
         unsigned int digit = GET_DIGIT(key, k, offset);
         bucket_table[digit][i] = 1;
     }
@@ -55,20 +55,20 @@ void perform_prefix_sum_on_bucket_table(vector<vector<unsigned int>> &bucket_tab
 }
 
 template <typename T>
-void move_elements_according_to_prefix_sums(vector<T> &items,
+void move_elements_according_to_prefix_sums(vector<T> &lst,
                                             unsigned int (*key_func)(const T&),
                                             vector<vector<unsigned int>> &bucket_table,
                                             unsigned int k,
                                             unsigned int offset) {
 
     // make copy of array of elements for moving
-    auto tmp = items;
+    auto tmp = lst;
 
-    for (int i=0; i < items.size(); ++i) {
+    for (int i=0; i < lst.size(); ++i) {
         unsigned int key = key_func(tmp[i]);
         unsigned int d_i = GET_DIGIT(key, k, offset);
 
-        // cout << items[i] << "  " << tmp[i] << "  " << key << "  " << d_i << "\n";
+        // cout << lst[i] << "  " << tmp[i] << "  " << key << "  " << d_i << "\n";
 
         // compute new index of element
         unsigned int new_index = 0;
@@ -82,7 +82,7 @@ void move_elements_according_to_prefix_sums(vector<T> &items,
         cout << i << " -> " << new_index << "\n";
 
         // move element over
-        items[new_index] = tmp[i];
+        lst[new_index] = tmp[i];
     }
 }
 
@@ -105,7 +105,7 @@ void print_vec(vector<T> &foo) {
 }
 
 template <typename T>
-void single_processor_radix_sort(vector<unsigned int> &lst, unsigned int (*key_func)(const T&), unsigned int k) {
+void single_processor_radix_sort(vector<T> &lst, unsigned int (*key_func)(const T&), unsigned int k) {
     cout << "Creating bucket table...\n";
     auto bucket_table = create_bucket_table(1 << k, lst.size());
     print_bucket_table(bucket_table);
