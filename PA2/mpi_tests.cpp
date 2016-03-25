@@ -69,7 +69,6 @@ void test_rand_ints(int n) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &p);
     if (rank == 0) {
-        // sort with 10 elements per process
         x.resize(n*p);
         for (size_t i = 0; i < x.size(); ++i)
             x[i] = rand() % n;
@@ -77,9 +76,35 @@ void test_rand_ints(int n) {
     test_sort_global(x, &nokey_func, MPI_UNSIGNED, 4);
 }
 
+TEST(MpiTEST,Sort10same){
+    std::vector<unsigned int> x;
+    int rank, p;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &p);
+    if (rank == 0) {
+        x.resize(n*p);
+        for (size_t i = 0; i < x.size(); ++i)
+            x[i] = 10;
+    }
+    test_sort_global(x, &nokey_func, MPI_UNSIGNED, 4);
+}
+
+TEST(MpiTEST,Sort19){
+    std::vector<unsigned int> x;
+    int rank, p;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &p);
+    if (rank == 0) {
+        x.resize(19);
+        x[19]={4,10,11,14,14,15,15,15,17,21,21,21,22,24,25,33,34,34,36,};
+    }
+    test_sort_global(x, &nokey_func, MPI_UNSIGNED, 4);
+}
+
 TEST(MpiTest, Sort10rand) {
     test_rand_ints(10);
 }
+
 
 TEST(MpiTest, Sort1000rand) {
     test_rand_ints(1000);
