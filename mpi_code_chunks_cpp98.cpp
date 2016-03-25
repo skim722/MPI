@@ -172,8 +172,56 @@ void print_bucket_table(vector< vector<unsigned int> > &bucket_table) {
     }
 }
 
+template <typename T>
+void exchange_elements_between_processors(vector<T> &lst,
+                                          const vector<unsigned int> &global_indexes,
+                                          MPI_Datatype dt,
+                                          MPI_Comm comm) {
+
+    // Get number of processors
+    int num_processors; MPI_Comm_size(comm, &num_processors);
+
+    // Run histogram over the list of elements to compute how many items will be sent to how which processors
+    vector<int> send_counts(num_processors, 0);
+    for (int i=0; i < global_indexes.size(); ++i) {
+        // global_indexes.size() should be equal to lst.size() (it is a BUG if it's not!)
+        unsigned int destined_processor = global_indexes[i] / lst.size();
+        send_counts[destined_processor]++;
+    }
+
+    // Initialize receive_counts
+    vector<int> receive_counts(num_processors, 0);
+
+    // Exchange the sendcount information with the other processors so a receive_counts array can be filled in for MPI_Alltoallv use later on
+    // (Tell the other processors how much data will be coming)
+    MPI_Alltoall(&send_counts[0], 1, MPI_INT, &receive_counts[0], 1, MPI_INT, comm);
+
+    // Initialize displacement arrays for the send and receive buffers
+    vector<int> send_displacements(num_processors, 0), receive_displacements(num_processors, 0);
+    for (int i=1; i < num_processors; ++i) {
+        // calculate displacements
+        send_displacements[i]       = send_displacements[i-1] + send_counts[i-1];
+        receive_displacements[i]    = receive_displacements[i-1] + receive_counts[i-1];
+    }
+
+    // calculate receive size (should be == lst.size())
+    int receive_size = std::accumulate(receive_counts.begin(), receive_counts.end(), 0);
+
+    // Initialize the receive buffer
+    vector<T> recvbuf(receive_size);
+
+    // send/receive different amounts of data to/from each processor
+    MPI_Alltoallv(&lst[0], &send_counts[0], &send_displacements[0], dt,
+                  &recvbuf[0], &receive_counts[0], &receive_displacements[0], dt, comm);
+
+    // Copy revbuf over to lst
+    lst = recvbuf;
+    return;
+}
+
 int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
+
     MPI_Comm comm = MPI_COMM_WORLD;
     int p, rank;
     MPI_Comm_size(comm, &p);
@@ -197,7 +245,9 @@ int main(int argc, char *argv[]) {
         print_vec(global_indexes);
     }
 
-    MPI_Finalize();
+    // Perform MPI_Alltoallv to move the elements based on the global_indexes
+    exchange_elements_between_processors(lst, global_indexes, MPI_UNSIGNED, comm);
 
+    MPI_Finalize();
     return 0;
 }
