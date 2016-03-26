@@ -122,7 +122,6 @@ void move_elements_according_to_prefix_sums(vector<T> &lst,
     }
 }
 
-
 tuple_vec compute_global_t_prime_sums_and_exscans_arrays(const vector< vector<unsigned int> > &prefix_summed_bucket_table,
                                                          MPI_Comm comm) {
     tuple_vec tup;
@@ -273,7 +272,7 @@ void radix_sort(vector<T> &lst, unsigned int (*key_func)(const T&), MPI_Datatype
 
 
         // 2.) get global histograms (P, G) via MPI_Exscan/MPI_Allreduce,...
-                // We must reset the bucket table, because the elements have moved around
+                // We must first reset the bucket table before proceeding, because the elements have been moved around
         clean_bucket_table(bucket_table);
         prepopulate_bucket_table(bucket_table, lst, key_func, k, offset);
         perform_prefix_sum_on_bucket_table(bucket_table);
