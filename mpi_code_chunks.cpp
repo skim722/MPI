@@ -49,7 +49,7 @@ std::tuple<vector<unsigned int>, vector<unsigned int>, vector<unsigned int>> com
         P_EI[i] = t_primes_exscanned[d_i];
 
         // Get the number of elements with the same digit on the same processor and LEFT of this element (hence the -1)
-        prefix_summed_bucket_table[d_i][i] - 1;
+        L_EI[i] = prefix_summed_bucket_table[d_i][i] - 1;
     }
 
     return make_tuple(G_EI, P_EI, L_EI);
