@@ -125,7 +125,7 @@ tuple_vec compute_G_P_L_EI_arrays(const vector<T> &lst,
         P_EI[i] = t_primes_exscanned[d_i];
 
         // Get the number of elements with the same digit on the same processor and LEFT of this element (hence the -1)
-        prefix_summed_bucket_table[d_i][i] - 1;
+        L_EI[i]=prefix_summed_bucket_table[d_i][i] - 1;
     }
 
     return tup;
@@ -215,8 +215,17 @@ void exchange_elements_between_processors(vector<T> &lst,
                   &recvbuf[0], &receive_counts[0], &receive_displacements[0], dt, comm);
 
     // Copy revbuf over to lst
+    print_lst(recvbuf);
     lst = recvbuf;
     return;
+}
+
+template <typename T>
+void print_lst(vector<T> &lst) {
+    for (int i=0;i<lst.size();i++){
+         cout<<lst[i]<<"\t";
+    }
+    cout<<'\n';
 }
 
 int main(int argc, char *argv[]) {
@@ -228,7 +237,10 @@ int main(int argc, char *argv[]) {
     MPI_Comm_rank(comm, &rank);
 
 
-    vector<unsigned int> lst(10, 2);
+    static const int arr[]={3,2,1,4,5,6,7,8,9,11,12};     
+    vector <unsigned int> lst(arr,arr+sizeof(arr)/sizeof(arr[0]));     
+    print_lst(lst); 
+    
     unsigned int k = 3, offset=0;
 
     vector< vector<unsigned int> > bucket_table = create_bucket_table(1 << k, lst.size());
@@ -247,7 +259,8 @@ int main(int argc, char *argv[]) {
 
     // Perform MPI_Alltoallv to move the elements based on the global_indexes
     exchange_elements_between_processors(lst, global_indexes, MPI_UNSIGNED, comm);
-
+    
+    print_lst(lst);
     MPI_Finalize();
     return 0;
 }
