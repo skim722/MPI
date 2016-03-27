@@ -268,7 +268,7 @@ void radix_sort(vector<T> &lst, unsigned int (*key_func)(const T&), MPI_Datatype
         clean_bucket_table(bucket_table);
         prepopulate_bucket_table(bucket_table, lst, key_func, k, offset);
         perform_prefix_sum_on_bucket_table(bucket_table);
-        move_elements_according_to_prefix_sums(lst, nokey_func, bucket_table, k, offset);
+        move_elements_according_to_prefix_sums(lst, key_func, bucket_table, k, offset);
 
 
         // 2.) get global histograms (P, G) via MPI_Exscan/MPI_Allreduce,...
@@ -276,7 +276,7 @@ void radix_sort(vector<T> &lst, unsigned int (*key_func)(const T&), MPI_Datatype
         clean_bucket_table(bucket_table);
         prepopulate_bucket_table(bucket_table, lst, key_func, k, offset);
         perform_prefix_sum_on_bucket_table(bucket_table);
-        vector<unsigned int> global_indexes = compute_global_target_index(lst, bucket_table, nokey_func, comm, k, offset);
+        vector<unsigned int> global_indexes = compute_global_target_index(lst, bucket_table, key_func, comm, k, offset);
 
 
         // 3.) calculate send_counts
@@ -290,7 +290,7 @@ void radix_sort(vector<T> &lst, unsigned int (*key_func)(const T&), MPI_Datatype
         clean_bucket_table(bucket_table);
         prepopulate_bucket_table(bucket_table, lst, key_func, k, offset);
         perform_prefix_sum_on_bucket_table(bucket_table);
-        move_elements_according_to_prefix_sums(lst, nokey_func, bucket_table, k, offset);
+        move_elements_according_to_prefix_sums(lst, key_func, bucket_table, k, offset);
     }
 }
 
@@ -328,6 +328,7 @@ int main(int argc, char *argv[]) {
 
     unsigned int arr[] = { 16, 2, 77, 29, 55, 21, 423, 33, 1064, 1 };
     vector<unsigned int> lst(arr, arr + sizeof(arr) / sizeof(arr[0]) );
+    // vector<unsigned int> lst(arr, &arr[9]);
 
     if (get_rank(comm) == 0) cout << "ARRAY LAYOUTS *BEFORE* PARALLEL RADIX SORT:\n";
     mpi_print_vec(lst, nokey_func, comm);
