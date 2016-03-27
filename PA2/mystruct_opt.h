@@ -16,9 +16,10 @@
  *       performance within radix sort.
  */
 struct MyStruct {
-    unsigned int key;
-    double d;
-    char e[4];
+    // Order the struct member variables as such to remove 8 bytes of local padding (reduce struct offset (sizeof()) from 24 to 16 bytes)
+    double d;           // 8 bytes
+    unsigned int key;   // 4 bytes
+    char e[4];          // 4 bytes
 };
 
 /**
