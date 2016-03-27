@@ -291,9 +291,7 @@ void exchange_elements_between_processors(vector<T> &lst,
  */
 template <typename T>
 void radix_sort(T* begin, T* end, unsigned int (*key_func)(const T&), MPI_Datatype dt, MPI_Comm comm, unsigned int k = 16) {
-    // The number of elements per processor: n/p
-    size_t np = end - begin;
-
+    // Copy the input array into vector for easier manipulation
     vector<T> lst(begin, end);
 
     // the number of histogram buckets = 2^k = 1 << k
@@ -328,5 +326,8 @@ void radix_sort(T* begin, T* end, unsigned int (*key_func)(const T&), MPI_Dataty
         perform_prefix_sum_on_bucket_table(bucket_table);
         move_elements_according_to_prefix_sums(lst, key_func, bucket_table, k, offset);
     }
+
+    // Copy results back to the original array that was passed in
+    std::copy(lst.begin(), lst.end(), begin);
 }
 
