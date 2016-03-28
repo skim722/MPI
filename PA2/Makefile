@@ -1,5 +1,5 @@
 # Makefile for HPC 6220 Programming Assignment 3
-CXX=mpic++
+CXX=/usr/lib64/openmpi/bin/mpic++
 CCFLAGS=-Wall -g 
 # activate for compiler optimizations:
 #CCFLAGS=-Wall -O3
@@ -27,7 +27,7 @@ sort-mystruct-opt: main-opt.o mystruct_opt.o
 main-opt.o: main.cpp
 	$(CXX) $(CCFLAGS) -DUSE_MYSTRUCT_OPT -c main.cpp -o main-opt.o
 
-radix-tests: mpi_tests.o mystruct.o mpi_gtest.o gtest-all.o
+radix-tests: mystruct.o mpi_gtest.o gtest-all.o
 	$(CXX) $(LDFLAGS) -o $@ $^
 
 gtest-all.o : $(GTEST_DIR)/gtest-all.cc $(GTEST_DIR)/gtest.h
