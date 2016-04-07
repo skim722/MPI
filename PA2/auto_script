@@ -1,0 +1,10 @@
+#!/bin/bash
+#j=32768 #Number of element
+p=8
+k=2
+for j in `seq 1 1000`;
+do
+    let n=p*j
+    /usr/lib64/openmpi/bin/mpirun -n $p ./sort-mystruct -t -n $n -k $k
+done    
+        
