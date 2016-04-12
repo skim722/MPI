@@ -24,6 +24,30 @@
 #include "utils.h"
 #include "io.h"
 
+
+// enable time measurements on MAC OS
+#ifdef __MACH__
+#include <mach/clock.h>
+#include <mach/mach.h>
+#endif
+
+
+// timing function that works for both Linux and MAC OS
+void my_gettime(struct timespec *ts) {
+#ifdef __MACH__ // OS X does not have clock_gettime, use clock_get_time
+  clock_serv_t cclock;
+  mach_timespec_t mts;
+  host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cclock);
+  clock_get_time(cclock, &mts);
+  mach_port_deallocate(mach_task_self(), cclock);
+  ts->tv_sec = mts.tv_sec;
+  ts->tv_nsec = mts.tv_nsec;
+#else
+  clock_gettime(CLOCK_MONOTONIC, ts);
+#endif
+}
+
+
 void print_usage()
 {
     std::cerr << "Usage: ./jacobi <input_A> <input_b> <output_x>" << std::endl;
@@ -146,7 +170,7 @@ int main(int argc, char *argv[])
       MPI_Bcast(&n, 1, MPI_INT, rank00, grid_comm);
 
       // start timer
-      clock_gettime(CLOCK_MONOTONIC,  &t_start);
+      my_gettime(&t_start);
 
       // allocate output and run the parallel jacobi implementation
       if (myrank == rank00)
@@ -156,7 +180,7 @@ int main(int argc, char *argv[])
       if (myrank == rank00)
       {
          // get time
-         clock_gettime(CLOCK_MONOTONIC,  &t_end);
+         my_gettime(&t_end);
          // time in seconds
          double time_secs = (t_end.tv_sec - t_start.tv_sec)
             + (double) (t_end.tv_nsec - t_start.tv_nsec) * 1e-9;
@@ -189,12 +213,12 @@ int main(int argc, char *argv[])
          }
       }
 
-      clock_gettime(CLOCK_MONOTONIC,  &t_start);
+      my_gettime(&t_start);
       // sequential jacobi
       x = std::vector<double>(n);
       jacobi(n, &A[0], &b[0], &x[0]);
       // get time
-      clock_gettime(CLOCK_MONOTONIC,  &t_end);
+      my_gettime(&t_end);
       // time in seconds
       double time_secs = (t_end.tv_sec - t_start.tv_sec)
          + (double) (t_end.tv_nsec - t_start.tv_nsec) * 1e-9;
