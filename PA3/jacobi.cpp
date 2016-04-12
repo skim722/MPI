@@ -51,20 +51,20 @@ void jacobi(const int n, double* A, double* b, double* x, int max_iter, double l
         D[i]=A[i*n+i]; //D=diag(A)
         R[i*n+i]=0.0;  //R=A-D
     } 
-    double norm=l2_termination+1;
-    for (int iter=0; iter<max_iter;  iter++){
-        if(norm>l2_termination){
-            matrix_vector_mult(n,&(R[0]),x,&(Rx[0]));
-            for(int j;j<n;++j)
-                x[j]=(b[j]-Rx[j])/D[j];  //x <- (b-Rx)/D
-            //obtain L2 Norm
-            norm=0.0;
-            matrix_vector_mult(n,A,b,&(Ax[0]));
-            for (int i=0;i<n;++i){
-                norm+=pow(Ax[i]-b[i],2);
-            }
-            norm=sqrt(norm);
-            iter++;
+    double norm=l2_termination*2;
+    int iter=0;
+    while (norm>l2_termination){
+        matrix_vector_mult(n,&(R[0]),x,&(Rx[0]));
+        for(int j;j<n;++j)
+             x[j]=(b[j]-Rx[j])/D[j];  //x <- (b-Rx)/D
+        //obtain L2 Norm
+        norm=0.0;
+        matrix_vector_mult(n,A,b,&(Ax[0]));
+        for (int i=0;i<n;++i){
+            norm+=pow(Ax[i]-b[i],2);
         }
-    }
+        norm=sqrt(norm);
+        iter++;
+        if(iter>max_iter) break;
+     }
 }
