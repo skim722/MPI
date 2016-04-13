@@ -16,13 +16,32 @@
 #include <vector>
 #include <math.h>
 
+ using namespace std;
+
+void print_matrix(const int n, const double* A) {
+    for (int i=0; i < n; ++i) {
+        cout << "[ ";
+        for (int j=0; j < n; ++j) {
+            cout << A[i*n+j] << " ";
+        } cout << "]\n";
+    } cout << "\n";
+}
+
+void print_vec(const int n, const double* x) {
+    cout << "\n";
+    for (int i=0; i < n; ++i) {
+        cout << "[" << x[i] << "]\n";
+    } cout << "\n\n";
+}
+
 // Calculates y = A*x for a square n-by-n matrix A, and n-dimensional vectors x
 // and y
 void matrix_vector_mult(const int n, const double* A, const double* x, double* y) {
-    for(int row=0;row<n;++row){
+    for (int row=0; row < n; ++row) {
         y[row]=0.0;
-        for(int column=0;column<n;++column) {
-            y[row]+=x[column]*A[row*n+column];
+        for (int column=0; column < n; ++column) {
+            // cout << x[column] * A[row*n+column] << endl;
+            y[row] += x[column] * A[row*n+column];
         }
     }
 }
@@ -47,17 +66,22 @@ void jacobi(const int n, double* A, double* b, double* x, int max_iter, double l
         D[i] = A[i * n + i];    // D=diag(A)
         R[i*n+i] = 0.0;         // R=A-D
     }
+
     double norm = l2_termination*2;
     int iter = 0;
     while (norm > l2_termination && iter++ < max_iter) {
+        // Compute Rx
         matrix_vector_mult(n, &R[0], x, &Rx[0]);
-        for(int j;j<n;++j) x[j] = (b[j] - Rx[j]) / D[j];  // x <- (b-Rx) / D
 
-        // obtain L2 norm
+        // x <- (b-Rx) / D
+        for (int j=0; j < n; ++j) x[j] = (b[j] - Rx[j]) / D[j];
+
+        // Ax
+        matrix_vector_mult(n, A, x, &Ax[0]);
+        // Compute L2 norm
         norm = 0.0;
-        matrix_vector_mult(n, A, b, &Ax[0]);
         for (int i=0; i < n; ++i) {
-            norm += pow(Ax[i]-b[i], 2);
+            norm += pow(Ax[i] - b[i], 2);
         }
         norm = sqrt(norm);
      }

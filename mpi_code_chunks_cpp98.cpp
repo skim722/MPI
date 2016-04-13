@@ -178,11 +178,7 @@ tuple_vec compute_G_P_L_EI_arrays(const vector<T> &lst,
         P_EI[i] = t_primes_exscanned[d_i];
 
         // Get the number of elements with the same digit on the same processor and LEFT of this element (hence the -1)
-<<<<<<< HEAD
-        L_EI[i]=prefix_summed_bucket_table[d_i][i] - 1;
-=======
         L_EI[i] = prefix_summed_bucket_table[d_i][i] - 1;
->>>>>>> 279f6aaea6b1443f65d966ea2ae8a4b2f011f1ae
     }
 
     return tup;
@@ -257,21 +253,10 @@ void exchange_elements_between_processors(vector<T> &lst,
                   &recvbuf[0], &receive_counts[0], &receive_displacements[0], mpi_dt, comm);
 
     // Copy revbuf over to lst
-    print_lst(recvbuf);
     lst = recvbuf;
     return;
 }
 
-<<<<<<< HEAD
-template <typename T>
-void print_lst(vector<T> &lst) {
-    for (int i=0;i<lst.size();i++){
-         cout<<lst[i]<<"\t";
-    }
-    cout<<'\n';
-}
-
-=======
 
 
 template <typename T>
@@ -310,7 +295,6 @@ void radix_sort(vector<T> &lst, unsigned int (*key_func)(const T&), MPI_Datatype
 }
 
 
->>>>>>> 279f6aaea6b1443f65d966ea2ae8a4b2f011f1ae
 int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
     MPI_Comm comm = MPI_COMM_WORLD;
@@ -320,14 +304,6 @@ int main(int argc, char *argv[]) {
         MPI_Comm_size(comm, &p);
         MPI_Comm_rank(comm, &rank);
 
-<<<<<<< HEAD
-    static const int arr[]={3,2,1,4,5,6,7,8,9,11,12};     
-    vector <unsigned int> lst(arr,arr+sizeof(arr)/sizeof(arr[0]));     
-    print_lst(lst); 
-    
-    unsigned int k = 3, offset=0;
-=======
->>>>>>> 279f6aaea6b1443f65d966ea2ae8a4b2f011f1ae
 
         vector<unsigned int> lst(10, 2);
         unsigned int k = 3, offset=0;
@@ -359,16 +335,9 @@ int main(int argc, char *argv[]) {
 
     radix_sort(lst, nokey_func, MPI_UNSIGNED, comm, 3);
 
-<<<<<<< HEAD
-    // Perform MPI_Alltoallv to move the elements based on the global_indexes
-    exchange_elements_between_processors(lst, global_indexes, MPI_UNSIGNED, comm);
-    
-    print_lst(lst);
-=======
     if (get_rank(comm) == 0) cout << "ARRAY LAYOUTS *AFTER* PARALLEL RADIX SORT:\n";
     mpi_print_vec(lst, nokey_func, comm);
 
->>>>>>> 279f6aaea6b1443f65d966ea2ae8a4b2f011f1ae
     MPI_Finalize();
     return 0;
 }

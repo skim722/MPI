@@ -21,10 +21,17 @@
  * TODO: Implement your solutions here
  */
 
+vector<int> get_cartesian_coords(MPI_Comm comm, int maxdims) {
+    int rank; MPI_Comm_rank(comm, &rank);
+    vector<int> coords(maxdims, 0);
+    MPI_Cart_coords(comm, rank, maxdims, &coords[0]);
+    return coords;
+}
 
-void distribute_vector(const int n, double* input_vector, double** local_vector, MPI_Comm comm)
-{
+void distribute_vector(const int n, double* input_vector, double** local_vector, MPI_Comm comm) {
     // TODO
+
+    //MPI_Scatter(input_vector, int send_count, MPI_Datatype send_datatype, *local_vector, int recv_count, MPI_DOUBLE, int root, MPI_Comm communicator)
 }
 
 
