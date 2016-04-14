@@ -17,6 +17,8 @@
 #include <math.h>
 #include <vector>
 
+using namespace std;
+
 /*
  * TODO: Implement your solutions here
  */
@@ -28,12 +30,67 @@ vector<int> get_cartesian_coords(MPI_Comm comm, int maxdims) {
     return coords;
 }
 
-void distribute_vector(const int n, double* input_vector, double** local_vector, MPI_Comm comm) {
-    // TODO
-
-    //MPI_Scatter(input_vector, int send_count, MPI_Datatype send_datatype, *local_vector, int recv_count, MPI_DOUBLE, int root, MPI_Comm communicator)
+vector<int> get_comm_dims(MPI_Comm comm, int maxdims=2) {
+    vector<int> dims(maxdims,0), periods(maxdims,0), coords(maxdims,0);
+    MPI_Cart_get(comm, maxdims, &dims[0], &periods[0], &coords[0]);
+    return dims;
 }
 
+void get_submatrix_size(MPI_Comm comm, int n, int *row, int *col) {
+    vector<int> dims(2,0), periods(2,0), coords(2,0);
+    MPI_Cart_get(comm, 2, &dims[0], &periods[0], &coords[0]);
+
+    if (coords[0] < n % dims[0]) {
+        *row = ceil((double)n/dims[0]);
+    } else {
+        *row = floor((double)n/dims[0]);
+    }
+
+    if (coords[1] < n % dims[1]) {
+        *col = ceil((double)n/dims[1]);
+    } else {
+        *col = floor((double)n/dims[1]);
+    }
+}
+
+int get_chunk_size(int n, int q, int i) {
+    if (i < n % q) {
+        return ceil((double)n/q);
+    } else {
+        return floor((double)n/q);
+    }
+}
+
+void distribute_vector(const int n, double* input_vector, double** local_vector, MPI_Comm comm) {
+    // Get MPI info - grid dimensions and cartesian coords of current processor
+    int maxdims = 2;
+    vector<int> dims(maxdims,0), periods(maxdims,0), coords(maxdims,0);
+    MPI_Cart_get(comm, maxdims, &dims[0], &periods[0], &coords[0]);
+
+    // Create the column communicator
+    MPI_Comm column_comm;
+    int remain_dims[] = { true, false };
+    MPI_Cart_sub(comm, remain_dims, &column_comm);
+
+
+    // Determine the send_counts and displacements to each processor in the column
+    vector<int> send_counts(dims[0], 0), send_displacements(dims[0], 0);
+    for (int i=0; i < dims[0]; ++i) {
+        send_counts[i] = get_chunk_size(n, dims[0], i);
+    }
+    for (int i=1; i < send_counts.size(); ++i) {
+        send_displacements[i] = send_displacements[i-1] + send_counts[i-1];
+    }
+
+    // Allocate local_vector (use get_chunk_size to determine the size needed for the current processor)
+    // Using coords without looking it up a second time using column_comm is fine because
+    // in both 2D and 1D communicator, coords[0] is the same
+    int local_vector_len = get_chunk_size(n, dims[0], coords[0]);
+    *local_vector = new double[ local_vector_len ];
+
+    // ScatterV the elements (not Scatter)
+    MPI_Scatterv(input_vector, &send_counts[0], &send_displacements[0], MPI_DOUBLE, *local_vector, local_vector_len, MPI_DOUBLE, 0, column_comm);
+}
 
 // gather the local vector distributed among (i,0) to the processor (0,0)
 void gather_vector(const int n, double* local_vector, double* output_vector, MPI_Comm comm)
