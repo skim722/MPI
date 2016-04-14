@@ -72,7 +72,6 @@ void distribute_vector(const int n, double* input_vector, double** local_vector,
     int remain_dims[] = { true, false };
     MPI_Cart_sub(comm, remain_dims, &column_comm);
 
-
     // Determine the send_counts and displacements to each processor in the column
     vector<int> send_counts(dims[0], 0), send_displacements(dims[0], 0);
     for (int i=0; i < dims[0]; ++i) {
@@ -93,13 +92,34 @@ void distribute_vector(const int n, double* input_vector, double** local_vector,
 }
 
 // gather the local vector distributed among (i,0) to the processor (0,0)
-void gather_vector(const int n, double* local_vector, double* output_vector, MPI_Comm comm)
-{
-    // TODO
+void gather_vector(const int n, double* local_vector, double* output_vector, MPI_Comm comm) {
+    // Get MPI info - grid dimensions and cartesian coords of current processor
+    int maxdims = 2;
+    vector<int> dims(maxdims,0), periods(maxdims,0), coords(maxdims,0);
+    MPI_Cart_get(comm, maxdims, &dims[0], &periods[0], &coords[0]);
+
+    // Create the column communicator
+    MPI_Comm column_comm;
+    int remain_dims[] = { true, false };
+    MPI_Cart_sub(comm, remain_dims, &column_comm);
+
+    // Determine the send_counts and displacements to each processor in the column
+    vector<int> receive_counts(dims[0], 0), receive_displacements(dims[0], 0);
+    for (int i=0; i < dims[0]; ++i) {
+        receive_counts[i] = get_chunk_size(n, dims[0], i);
+    }
+    for (int i=1; i < receive_counts.size(); ++i) {
+        receive_displacements[i] = receive_displacements[i-1] + receive_counts[i-1];
+    }
+
+    // Compute local_vector's length (use get_chunk_size to determine the size needed for the current processor)
+    int local_vector_len = get_chunk_size(n, dims[0], coords[0]);
+
+    // GatherV the elements (not Gather)
+    MPI_Gatherv(local_vector, local_vector_len, MPI_DOUBLE, output_vector, &receive_counts[0], &receive_displacements[0], MPI_DOUBLE, 0, column_comm);
 }
 
-void distribute_matrix(const int n, double* input_matrix, double** local_matrix, MPI_Comm comm)
-{
+void distribute_matrix(const int n, double* input_matrix, double** local_matrix, MPI_Comm comm) {
     // TODO
 }
 
