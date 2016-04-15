@@ -119,6 +119,12 @@ void test_distribute_vector(int argc, char *argv[]) {
     int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     int p; MPI_Comm_size(MPI_COMM_WORLD, &p);
 
+    if (p != 12) {
+        cerr << "Need 12 processors for this test; exiting!\n";
+        MPI_Finalize();
+        return;
+    }
+
     double arr[] = { 213.33, 2355.56, 85.454, 6783.234, -234.67, 33.97, -98789.22, 8798.1, -987098.0021, 232 };
     vector<double> input_vector(arr, arr + sizeof(arr) / sizeof(arr[0]) );
     if (rank != 0) {
@@ -173,6 +179,12 @@ void transpose_bcast_vector(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
     int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     int p; MPI_Comm_size(MPI_COMM_WORLD, &p);
+
+    if (p != 16) {
+        cerr << "Need 16 processors for this test; exiting!\n";
+        MPI_Finalize();
+        return;
+    }
 
     double arr[] = { 213.33, 2355.56, 85.454, 6783.234, -234.67, 33.97, -98789.22, 8798.1, -987098.0021, 232 };
     vector<double> input_vector(arr, arr + sizeof(arr) / sizeof(arr[0]) );
@@ -235,7 +247,7 @@ void transpose_bcast_vector(int argc, char *argv[]) {
 
     // Copy to vector2, but resize it so that all processors have same vector size to receive
     vector<double> local_vector2(local_vector);
-    local_vector2.resize(ceil((double)input_vector.size()/dims[0]));
+    local_vector2.resize(get_chunk_size(input_vector.size(), dims[0], coords[1]));
     mpi_print_vec_cart(local_vector2, grid_comm);
 
     // Broadcast along the column, with the diagonal element as the root for each communicator

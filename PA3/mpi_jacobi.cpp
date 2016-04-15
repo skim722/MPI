@@ -130,19 +130,51 @@ void transpose_bcast_vector(const int n, double* col_vector, double* row_vector,
     vector<int> dims(maxdims,0), periods(maxdims,0), coords(maxdims,0);
     MPI_Cart_get(comm, maxdims, &dims[0], &periods[0], &coords[0]);
 
-    // Get the diagonal - for a processor with coordinate (k, 0), the diagonal element is k distance away
+    // Get the diagonal processor - for a processor with coordinate (k, 0), the diagonal element is k distance away
     int rank_source, rank_dest;
-    int MPI_Cart_shift(comm, 1, coords[0], &rank_source, &rank_dest);
-    int local_vector_len = get_chunk_size(n, dims[0], coords[0]);
+    MPI_Cart_shift(comm, 1, coords[0], &rank_source, &rank_dest);
+    int col_vector_len = get_chunk_size(n, dims[0], coords[0]);
 
+    // Send data from the first column to the respective diagonal processors
     if (coords[1] == 0) {
         // If this processor is on the first column (i.e. coordinate (k, 0)), then send()
-        MPI_Send(col_vector, local_vector_len, MPI_DOUBLE, rank_dest, 0, comm);
+        MPI_Send(col_vector, col_vector_len, MPI_DOUBLE, rank_dest, 0, comm);
+
     } else if (coords[0] == coords[1]) {
-        // Else if this processor is on the diagonal (i.e. coordinate (k, k)), then receive()
+        /*
+            Else if this processor is on the diagonal (i.e. coordinate (k, k)), then receive()
+            Copy to the ROW vector since the COL pointer is invalid for processors not in the first column
+        */
         MPI_Status stat;
-        MPI_Recv(col_vector, local_vector_len, MPI_DOUBLE, rank_source, 0, comm, &stat);
+        MPI_Recv(row_vector, col_vector_len, MPI_DOUBLE, rank_source, 0, comm, &stat);
     }
+
+    // Because not all processors participate, we need a barrier here
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    // Create the column communicator
+    MPI_Comm column_comm;
+    int remain_dims[] = { true, false };
+    MPI_Cart_sub(comm, remain_dims, &column_comm);
+
+    /*
+        Processors in the same column need to know the size of the data being sent
+        by the diagonal processor of the column.  Because processor (i,j) is on
+        column j, the diagonal processor (the root) is the jth element in the column
+        communicator (or row j in the grid communicator), so we use coords[1] instead of coords[0]
+    */
+    int row_vector_len = get_chunk_size(n, dims[0], coords[1]);
+
+    /*
+        Broadcast along the column, with the diagonal element as the root for each communicator
+        We use coords[1] to indicate the root processor for the broadcast in the particular column.
+        Processor (i,j) is on column j, and so the diagonal processor (the root) will
+        be the jth processor in the column communicator
+    */
+    MPI_Bcast(row_vector, row_vector_len, MPI_DOUBLE, coords[1], column_comm);
+
+    // Deallocate the column communicator
+    MPI_Comm_free(&column_comm);
 }
 
 
