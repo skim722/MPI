@@ -124,9 +124,25 @@ void distribute_matrix(const int n, double* input_matrix, double** local_matrix,
 }
 
 
-void transpose_bcast_vector(const int n, double* col_vector, double* row_vector, MPI_Comm comm)
-{
-    // TODO
+void transpose_bcast_vector(const int n, double* col_vector, double* row_vector, MPI_Comm comm) {
+    // Get MPI info - grid dimensions and cartesian coords of current processor
+    int maxdims = 2;
+    vector<int> dims(maxdims,0), periods(maxdims,0), coords(maxdims,0);
+    MPI_Cart_get(comm, maxdims, &dims[0], &periods[0], &coords[0]);
+
+    // Get the diagonal - for a processor with coordinate (k, 0), the diagonal element is k distance away
+    int rank_source, rank_dest;
+    int MPI_Cart_shift(comm, 1, coords[0], &rank_source, &rank_dest);
+    int local_vector_len = get_chunk_size(n, dims[0], coords[0]);
+
+    if (coords[1] == 0) {
+        // If this processor is on the first column (i.e. coordinate (k, 0)), then send()
+        MPI_Send(col_vector, local_vector_len, MPI_DOUBLE, rank_dest, 0, comm);
+    } else if (coords[0] == coords[1]) {
+        // Else if this processor is on the diagonal (i.e. coordinate (k, k)), then receive()
+        MPI_Status stat;
+        MPI_Recv(col_vector, local_vector_len, MPI_DOUBLE, rank_source, 0, comm, &stat);
+    }
 }
 
 
