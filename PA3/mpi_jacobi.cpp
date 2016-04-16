@@ -61,6 +61,17 @@ int get_chunk_size(int n, int q, int i) {
     }
 }
 
+template <typename T>
+void transpose_matrix(vector<T> &matrix, int current_m, int current_n) {
+    vector<T> matrix2(matrix.size(), 0);
+    for (int i = 0; i < current_m; ++i) {
+       for (int j = 0; j < current_n; ++j) {
+            matrix2[j*current_m + i] = matrix[i*current_n + j];
+        }
+    }
+    matrix = matrix2;
+}
+
 void distribute_vector(const int n, double* input_vector, double** local_vector, MPI_Comm comm) {
     // Get MPI info - grid dimensions and cartesian coords of current processor
     int maxdims = 2;
