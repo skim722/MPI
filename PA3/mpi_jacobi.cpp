@@ -100,9 +100,9 @@ void distribute_vector(const int n, double* input_vector, double** local_vector,
 
     // ScatterV the elements (not Scatter)
     MPI_Scatterv(input_vector, &send_counts[0], &send_displacements[0], MPI_DOUBLE, *local_vector, local_vector_len, MPI_DOUBLE, 0, column_comm);
+    MPI_Comm_free(&column_comm);
 }
 
-// gather the local vector distributed among (i,0) to the processor (0,0)
 void gather_vector(const int n, double* local_vector, double* output_vector, MPI_Comm comm) {
     // Get MPI info - grid dimensions and cartesian coords of current processor
     int maxdims = 2;
@@ -128,12 +128,151 @@ void gather_vector(const int n, double* local_vector, double* output_vector, MPI
 
     // GatherV the elements (not Gather)
     MPI_Gatherv(local_vector, local_vector_len, MPI_DOUBLE, output_vector, &receive_counts[0], &receive_displacements[0], MPI_DOUBLE, 0, column_comm);
+    MPI_Comm_free(&column_comm);
 }
 
 void distribute_matrix(const int n, double* input_matrix, double** local_matrix, MPI_Comm comm) {
-    // TODO
-}
+    // Get MPI info - grid dimensions and cartesian coords of current processor
+    int maxdims = 2;
+    vector<int> dims(maxdims,0), periods(maxdims,0), coords(maxdims,0);
+    MPI_Cart_get(comm, maxdims, &dims[0], &periods[0], &coords[0]);
 
+    // Since we are provided an N x N matrix, M = N, but we refer to M for consistency
+    int m = n;
+    int submatrix_m = get_chunk_size(m, dims[0], coords[0]);
+    int submatrix_n = get_chunk_size(n, dims[1], coords[1]);
+
+    // Create the column communicator
+    MPI_Comm column_comm;
+    int remain_dims[] = { true, false };
+    MPI_Cart_sub(comm, remain_dims, &column_comm);
+
+    // Create the row communicator
+    MPI_Comm row_comm;
+    int remain_dims2[] = { false, true };
+    MPI_Cart_sub(comm, remain_dims2, &row_comm);
+
+
+
+    /*
+        PART 1 = Separate the matrix into row-blocks and ScatterV them to the processors in the first column.
+
+        BEFORE: Processor (0,0) contains the global matrix:
+
+            (0,0):
+              ________________________________________  _
+             |                                        | |  ceil(n/q)
+             |                                        | |
+             |----------------------------------------| -
+             |                                        | ...
+             |                                        |
+             |----------------------------------------| -
+             |                                        | |  floor(n/q)
+             |                                        | |
+             |----------------------------------------| -
+
+        AFTER: Processor (i,0) contains row-blocks of the global matrix:
+
+            (0,0):
+              ________________________________________  _
+             |                                        | |  ceil(n/q)
+             |                                        | |
+             |----------------------------------------| -
+
+            (1,0):
+             |----------------------------------------| -
+             |                                        | ...
+             |                                        |
+             |----------------------------------------| -
+
+            (q,0):
+             |----------------------------------------| -
+             |                                        | |  floor(n/q)
+             |                                        | |
+             |----------------------------------------| -
+    */
+
+    // Compute the sendcounts and displacements for the row-blocks
+    vector<int> sendcounts(dims[0], 0), displacements(dims[0], 0);
+    for (int i=0; i < dims[0]; ++i) {
+        sendcounts[i] = get_chunk_size(m, dims[0], i) * n;
+        if (i > 0) {
+            displacements[i] = displacements[i-1] + sendcounts[i-1];
+        }
+    }
+
+    // ScatterV the row-blocks (only the first column of processors participate)
+    vector<double> A_rowblock(submatrix_m * n, 0);
+    if (coords[1] == 0) {
+        MPI_Scatterv(input_matrix, &sendcounts[0], &displacements[0], MPI_DOUBLE, &A_rowblock[0], A_rowblock.size(), MPI_DOUBLE, 0, column_comm);
+    }
+
+    // Need to synchronize here since some processors will not be participating in the first ScatterV
+    MPI_Barrier(MPI_COMM_WORLD);
+
+
+
+    /*
+        PART 2 = IN PARALLEL FOR EACH ROW, separate the row-blocks into column subblocks and ScatterV them to the processors in the same row
+
+        BEFORE: Processor (i,0) contains the a row-block:
+
+            (i,0):
+             ________________________________________
+            |            |             |      |      |
+            |            |             |      |      |
+            |------------|-------------|------|------|
+
+        AFTER: Processor (i,j) contains the a column-subblock (the processor's block of the full matrix):
+
+            (i,0):          (i,1):           (i,q-1):   (i,q):
+             ____________    _____________    ______    ______
+            |            |  |             |  |      |  |      |
+            |            |  |             |  |      |  |      |
+            |------------|  |-------------|  |------|  |------|
+
+        HOWEVER, because we will be using a COLUMN MPI_vector_type to perform the ScatterV here, the elements will appear in transposed form!
+        Hence we need to perform matrix transpose in the end!
+    */
+
+    /*
+        Create an MPI_vector type that represents a COLUMN of the row-block
+        The vector consists of submatrix_m blocks of 1 consecutive elements,
+        with a distance of n elements between the start of each block
+    */
+    MPI_Datatype column_type2, column_type;
+    MPI_Type_vector(submatrix_m, 1, n, MPI_DOUBLE, &column_type2);
+    MPI_Type_create_resized(column_type2, 0, 1*sizeof(double), &column_type);
+    MPI_Type_commit(&column_type);
+
+    // Compute the sendcounts and displacements for the column-subblocks
+    sendcounts.clear(); sendcounts.resize(dims[1], 0);
+    displacements.clear(); displacements.resize(dims[1], 0);
+    for (int i=0; i < dims[1]; ++i) {
+        // Contrary to the first ScatterV, we are sending COLUMNs, not ELEMENTS, so we only need get_chunk_size() instead of get_chunk_size()*n
+        sendcounts[i] = get_chunk_size(n, dims[1], i);
+        if (i > 0) {
+            displacements[i] = displacements[i-1] + sendcounts[i-1];
+        }
+    }
+
+    // ScatterV the column-subblocks off the row-block
+    vector<double> A_local(submatrix_m * submatrix_n, 0);
+    MPI_Scatterv(&A_rowblock[0], &sendcounts[0], &displacements[0], column_type, &A_local[0], A_local.size(), MPI_DOUBLE, 0, row_comm);
+
+    // Allocate local_matrix and fill it with A_local-transpose
+    *local_matrix = new double[ A_local.size() ];
+    for (int i = 0; i < submatrix_n; ++i) {
+       for (int j = 0; j < submatrix_m; ++j) {
+            (*local_matrix)[j*submatrix_n + i] = A_local[i*submatrix_m + j];
+        }
+    }
+
+    // Need to synchronize here since processors of different-sized matrices for transposing
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Comm_free(&row_comm);
+    MPI_Comm_free(&column_comm);
+}
 
 void transpose_bcast_vector(const int n, double* col_vector, double* row_vector, MPI_Comm comm) {
     // Get MPI info - grid dimensions and cartesian coords of current processor

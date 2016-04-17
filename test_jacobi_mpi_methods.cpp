@@ -436,9 +436,6 @@ void test_distribute_matrix(int argc, char *argv[]) {
     int submatrix_m = get_chunk_size(m, dims[0], coords[0]);
     int submatrix_n = get_chunk_size(n, dims[1], coords[1]);
 
-    vector<int> submatrix_dims(2, 0); submatrix_dims[0] = submatrix_m; submatrix_dims[1] = submatrix_n;
-    mpi_print_vec_cart(submatrix_dims, grid_comm);
-
 
 
     /* PART 1 = Separate the matrix into row-blocks and ScatterV them to the processors in the first column */
