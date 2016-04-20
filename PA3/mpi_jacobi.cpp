@@ -327,17 +327,60 @@ void transpose_bcast_vector(const int n, double* col_vector, double* row_vector,
     MPI_Comm_free(&column_comm);
 }
 
+void distributed_matrix_vector_mult(const int n, double* local_A, double* local_x, double* local_y, MPI_Comm comm) {
+    // Get MPI info - grid dimensions and cartesian coords of current processor
+    int maxdims = 2;
+    vector<int> dims(maxdims,0), periods(maxdims,0), coords(maxdims,0);
+    MPI_Cart_get(comm, maxdims, &dims[0], &periods[0], &coords[0]);
 
-void distributed_matrix_vector_mult(const int n, double* local_A, double* local_x, double* local_y, MPI_Comm comm)
-{
-    // TODO
+    // Create the row communicator
+    MPI_Comm row_comm;
+    int remain_dims2[] = { false, true };
+    MPI_Cart_sub(comm, remain_dims2, &row_comm);
+
+    // Since we are provided an N x N matrix, M = N, but we refer to M for consistency
+    int m = n;
+    int submatrix_m = get_chunk_size(m, dims[0], coords[0]);
+    int submatrix_n = get_chunk_size(n, dims[1], coords[1]);
+
+    /*
+        Distribute local_x over the other processors using transpose_bcast_vector()
+        Because local_x is only valid on processors in the first column, we need a
+        temporary place to store it for all the other processors when calling transpose_bcast_vector()
+        The size of each processor's submatrix is submatrix_m x submatrix_n,
+        so the length of the process's portion of x (local_x_chunked, NOT local_x)
+        should be submatrix_n.  Likewise, the length of the process's portion of y (local_y_chunked, NOT local_y)
+        should be submatrix_m.
+
+        NOTE that local_x and local_y refer to the portions of x and y in the processors on the FIRST column of the grid,
+        while local_x_chunked and local_y_chunked refer to the portions of x and y in EACH of the processors in the grid
+
+        Based on the implementation of mpi_matrix_vector_mult(),
+        it's probably safe to use local_y as well, but we are just being explicit here
+    */
+    vector<double> local_x_chunked(submatrix_n, 0), local_y_chunked(submatrix_m, 0);
+    transpose_bcast_vector(n, local_x, &local_x_chunked[0], comm);
+
+    /*
+        Perform the local matrix multiplication and save the local chunk of y to local_y_chunked
+    */
+    matrix_vector_mult(submatrix_m, submatrix_n, local_A, &local_x_chunked[0], &local_y_chunked[0]);
+
+    /*
+        Along each row, the processors will all have a local_y_chunked of length submatrix_m elements
+        that needs to be bulk-reduced into the final local_y that is in processor (i,0) (rank 0 in
+        the row communicator)
+    */
+    MPI_Reduce(&local_y_chunked[0], local_y, submatrix_m, MPI_DOUBLE, MPI_SUM, 0, row_comm);
+    MPI_Comm_free(&row_comm);
 }
 
-// Solves Ax = b using the iterative jacobi method
-void distributed_jacobi(const int n, double* local_A, double* local_b, double* local_x,
-                MPI_Comm comm, int max_iter, double l2_termination)
-{
-    // TODO
+void distributed_jacobi(const int n, double* local_A, double* local_b, double* local_x, MPI_Comm comm, int max_iter, double l2_termination) {
+    // Solves Ax = b using the iterative jacobi method
+    // Get MPI info - grid dimensions and cartesian coords of current processor
+    int maxdims = 2;
+    vector<int> dims(maxdims,0), periods(maxdims,0), coords(maxdims,0);
+    MPI_Cart_get(comm, maxdims, &dims[0], &periods[0], &coords[0]);
 }
 
 
