@@ -381,6 +381,91 @@ void distributed_jacobi(const int n, double* local_A, double* local_b, double* l
     int maxdims = 2;
     vector<int> dims(maxdims,0), periods(maxdims,0), coords(maxdims,0);
     MPI_Cart_get(comm, maxdims, &dims[0], &periods[0], &coords[0]);
+
+    // Get the diagonal processor - for a processor with coordinate (k, k), the diagonal element is k distance away to the LEFT
+    int rank_source, rank_dest;
+    MPI_Cart_shift(comm, -1, coords[0], &rank_source, &rank_dest);
+
+    // Since we are provided an N x N matrix, M = N, but we refer to M for consistency
+    int m = n;
+    int submatrix_m = get_chunk_size(m, dims[0], coords[0]);
+    int submatrix_n = get_chunk_size(n, dims[1], coords[1]);
+
+
+    // Initialize D and R - allocate D and copy A to R
+    vector<double> local_R(local_A, local_A + (submatrix_m*submatrix_n)), local_D(submatrix_m, 0);
+    for (int i=0; i < submatrix_m; ++i) {
+        if (coords[0] == coords[1]) {
+            // Populate the diagonal
+            local_D[i] = local_A[i * submatrix_m + i];
+            // Set diagonal of R to be zero
+            local_R[i * submatrix_m +i] = 0.0;
+        }
+        // Initialze x to be zero
+        local_x[i] = 0;
+    }
+
+
+    // Distribute D from the diagonal processors to the first column processors
+    if (coords[0] == coords[1]) {
+        // If this processor is on the diagonal (i.e. coordinate (k, k)), then send()
+        MPI_Send(&local_D[0], local_D.size(), MPI_DOUBLE, rank_dest, 0, comm);
+
+    } else if (coords[1] == 0) {
+        // Else if this processor is on the first column (i.e. coordinate (k, 0)), then receive()
+        MPI_Status stat;
+        MPI_Recv(&local_D[0], local_D.size(), MPI_DOUBLE, rank_source, 0, comm, &stat);
+    }
+    // Because not all processors participate, we need a barrier here
+    MPI_Barrier(MPI_COMM_WORLD);
+
+
+    vector<double> local_Rx(submatrix_m, 0), local_Ax(submatrix_m, 0);
+
+
+    for (int iter=0; iter < max_iter; ++iter) {
+        /*
+            Compute Rx = R * x
+            After this step, only processors of the first column will have a valid local_Rx
+        */
+        distributed_matrix_vector_mult(n, &local_R[0], local_x, &local_Rx[0], comm);
+
+        /*
+            Compute x = (b - rx) / D; this is purely local on the first column
+            Processors on other columns will also run this, but the results will be discarded/ignored
+        */
+        for (int i=0; i < submatrix_m; ++i) {
+            local_x[i] = (local_b[i] - local_Rx[i]) / local_D[i];
+        }
+
+        /*
+            Compute Ax = A * x
+            After this step, only processors of the first column will have a valid local_Ax
+        */
+        distributed_matrix_vector_mult(n, local_A, local_x, &local_Ax[0], comm);
+
+        /*
+            Compute || b - Ax ||  but only if the processor is in the first column
+            We need to limit computation to the first column, because we will be
+            performing an Allreduce next and we don't want to pollute local_l2_norm_squared
+        */
+        double local_l2_norm_squared = 0;
+        if (coords[1] == 0) {
+            for (int i=0; i < submatrix_m; ++i) {
+                local_l2_norm_squared += pow(local_b[i] - local_Ax[i], 2);
+            }
+        }
+
+        /*
+            Sum the local_l2_norm_squared values of all processors
+            An Allreduce is needed so that the value is broadcast to all processors,
+            so that all processors will know when to stop or continue with the loop
+        */
+        double global_l2_norm_squared = 0;
+        MPI_Allreduce(&local_l2_norm_squared, &global_l2_norm_squared, 1, MPI_DOUBLE, MPI_SUM, comm);
+
+        if (global_l2_norm_squared <= pow(l2_termination, 2)) return;
+    }
 }
 
 
