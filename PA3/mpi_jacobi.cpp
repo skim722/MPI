@@ -153,7 +153,6 @@ void distribute_matrix(const int n, double* input_matrix, double** local_matrix,
     MPI_Cart_sub(comm, remain_dims2, &row_comm);
 
 
-
     /*
         PART 1 = Separate the matrix into row-blocks and ScatterV them to the processors in the first column.
 
@@ -209,7 +208,6 @@ void distribute_matrix(const int n, double* input_matrix, double** local_matrix,
 
     // Need to synchronize here since some processors will not be participating in the first ScatterV
     MPI_Barrier(MPI_COMM_WORLD);
-
 
 
     /*
@@ -420,9 +418,8 @@ void distributed_jacobi(const int n, double* local_A, double* local_b, double* l
     MPI_Barrier(MPI_COMM_WORLD);
 
 
+    double l2_termination_squared = pow(l2_termination, 2);
     vector<double> local_Rx(submatrix_m, 0), local_Ax(submatrix_m, 0);
-
-
     for (int iter=0; iter < max_iter; ++iter) {
         /*
             Compute Rx = R * x
@@ -459,12 +456,16 @@ void distributed_jacobi(const int n, double* local_A, double* local_b, double* l
         /*
             Sum the local_l2_norm_squared values of all processors
             An Allreduce is needed so that the value is broadcast to all processors,
-            so that all processors will know when to stop or continue with the loop
+            so that all processors will know whether to stop or continue with the loop
         */
         double global_l2_norm_squared = 0;
         MPI_Allreduce(&local_l2_norm_squared, &global_l2_norm_squared, 1, MPI_DOUBLE, MPI_SUM, comm);
 
-        if (global_l2_norm_squared <= pow(l2_termination, 2)) return;
+        /*
+            If we observe convergence, then we prematurely terminate the algorithm
+            We compare to the square of the l2 norm instead of the l2 norm itself to avoid extra computation
+        */
+        if (global_l2_norm_squared <= l2_termination_squared) return;
     }
 }
 
