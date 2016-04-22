@@ -16,23 +16,7 @@
 #include <vector>
 #include <math.h>
 
- using namespace std;
-
-void print_matrix(const int n, const double* A) {
-    for (int i=0; i < n; ++i) {
-        cout << "[ ";
-        for (int j=0; j < n; ++j) {
-            cout << A[i*n+j] << " ";
-        } cout << "]\n";
-    } cout << "\n";
-}
-
-void print_vec(const int n, const double* x) {
-    cout << "\n";
-    for (int i=0; i < n; ++i) {
-        cout << "[" << x[i] << "]\n";
-    } cout << "\n\n";
-}
+using namespace std;
 
 // Calculates y = A*x for a square n-by-n matrix A, and n-dimensional vectors x
 // and y
@@ -49,10 +33,10 @@ void matrix_vector_mult(const int n, const double* A, const double* x, double* y
 // Calculates y = A*x for a n-by-m matrix A, a m-dimensional vector x
 // and a n-dimensional vector y
 void matrix_vector_mult(const int n, const int m, const double* A, const double* x, double* y) {
-    for(int row=0; row < n; ++row) {
+    for (int row=0; row < n; ++row) {
         y[row] = 0.0;
-        for(int column=0; column < m; ++column) {
-            y[row] += x[column] * A[row * n + column];
+        for (int column=0; column < m; ++column) {
+            y[row] += x[column] * A[row * m + column];
         }
     }
 }

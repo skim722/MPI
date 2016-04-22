@@ -23,6 +23,34 @@ using namespace std;
  * TODO: Implement your solutions here
  */
 
+template <typename T>
+void print_matrix(T *foo, int m, int n) {
+    cout << "\n";
+    for (int i=0; i < m; ++i) {
+        cout << "[ ";
+        for (int j=0; j < n; ++j) {
+            cout << foo[i*n + j] << ", ";
+        } cout << "]\n";
+    } cout << "\n\n";
+}
+
+template <typename T>
+void print_vec(T *foo, int n) {
+    cout << "\n{ ";
+    for (int i=0; i < n; ++i) cout << foo[i] << ", ";
+    cout << "}\n\n\n";
+}
+
+template <typename T>
+void print_vec(vector<T> &foo) {
+    print_vec(&foo[0], foo.size());
+}
+
+template <typename T>
+void print_matrix(vector<T> &foo, int m, int n) {
+    print_matrix(&foo[0], m, n);
+}
+
 vector<int> get_cartesian_coords(MPI_Comm comm, int maxdims) {
     int rank; MPI_Comm_rank(comm, &rank);
     vector<int> coords(maxdims, 0);
@@ -98,8 +126,11 @@ void distribute_vector(const int n, double* input_vector, double** local_vector,
     int local_vector_len = get_chunk_size(n, dims[0], coords[0]);
     *local_vector = new double[ local_vector_len ];
 
-    // ScatterV the elements (not Scatter)
-    MPI_Scatterv(input_vector, &send_counts[0], &send_displacements[0], MPI_DOUBLE, *local_vector, local_vector_len, MPI_DOUBLE, 0, column_comm);
+    // ScatterV the elements (not Scatter) ONLY on the first column of processors, since input_vector is a valid pointer only in processor (0,0)
+    if (coords[1] == 0) {
+        MPI_Scatterv(input_vector, &send_counts[0], &send_displacements[0], MPI_DOUBLE, *local_vector, local_vector_len, MPI_DOUBLE, 0, column_comm);
+    }
+
     MPI_Comm_free(&column_comm);
 }
 
@@ -126,8 +157,11 @@ void gather_vector(const int n, double* local_vector, double* output_vector, MPI
     // Compute local_vector's length (use get_chunk_size to determine the size needed for the current processor)
     int local_vector_len = get_chunk_size(n, dims[0], coords[0]);
 
-    // GatherV the elements (not Gather)
-    MPI_Gatherv(local_vector, local_vector_len, MPI_DOUBLE, output_vector, &receive_counts[0], &receive_displacements[0], MPI_DOUBLE, 0, column_comm);
+    // GatherV the elements (not Gather) ONLY on the first column of processors, since input_vector is a valid pointer only in processor (0,0)
+    if (coords[1] == 0) {
+        MPI_Gatherv(local_vector, local_vector_len, MPI_DOUBLE, output_vector, &receive_counts[0], &receive_displacements[0], MPI_DOUBLE, 0, column_comm);
+    }
+
     MPI_Comm_free(&column_comm);
 }
 
@@ -287,10 +321,12 @@ void transpose_bcast_vector(const int n, double* col_vector, double* row_vector,
     if (coords[1] == 0) {
         // If this processor is on the first column (i.e. coordinate (k, 0)), then send()
         MPI_Send(col_vector, col_vector_len, MPI_DOUBLE, rank_dest, 0, comm);
+    }
 
-    } else if (coords[0] == coords[1]) {
+    // Do not use an else-if, because the processor with rank (0,0) needs to send to itself
+    if (coords[0] == coords[1]) {
         /*
-            Else if this processor is on the diagonal (i.e. coordinate (k, k)), then receive()
+            If this processor is on the diagonal (i.e. coordinate (k, k)), then receive()
             Copy to the ROW vector since the COL pointer is invalid for processors not in the first column
         */
         MPI_Status stat;
@@ -382,7 +418,7 @@ void distributed_jacobi(const int n, double* local_A, double* local_b, double* l
 
     // Get the diagonal processor - for a processor with coordinate (k, k), the diagonal element is k distance away to the LEFT
     int rank_source, rank_dest;
-    MPI_Cart_shift(comm, -1, coords[0], &rank_source, &rank_dest);
+    MPI_Cart_shift(comm, 1, -coords[0], &rank_source, &rank_dest);
 
     // Since we are provided an N x N matrix, M = N, but we refer to M for consistency
     int m = n;
@@ -408,12 +444,15 @@ void distributed_jacobi(const int n, double* local_A, double* local_b, double* l
     if (coords[0] == coords[1]) {
         // If this processor is on the diagonal (i.e. coordinate (k, k)), then send()
         MPI_Send(&local_D[0], local_D.size(), MPI_DOUBLE, rank_dest, 0, comm);
+    }
 
-    } else if (coords[1] == 0) {
+    // Do not use an else-if, because the processor with rank (0,0) needs to send to itself
+    if (coords[1] == 0) {
         // Else if this processor is on the first column (i.e. coordinate (k, 0)), then receive()
         MPI_Status stat;
         MPI_Recv(&local_D[0], local_D.size(), MPI_DOUBLE, rank_source, 0, comm, &stat);
     }
+
     // Because not all processors participate, we need a barrier here
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -429,7 +468,9 @@ void distributed_jacobi(const int n, double* local_A, double* local_b, double* l
 
         /*
             Compute x = (b - rx) / D; this is purely local on the first column
-            Processors on other columns will also run this, but the results will be discarded/ignored
+            Processors on other columns will also run this, but this is fine, because
+            local_x has been allocated for all processors - the local_x computed in the other columns
+            will simply be discarded/ignored
         */
         for (int i=0; i < submatrix_m; ++i) {
             local_x[i] = (local_b[i] - local_Rx[i]) / local_D[i];
@@ -478,6 +519,7 @@ void mpi_matrix_vector_mult(const int n, double* A,
     double* local_A = NULL;
     double* local_x = NULL;
     distribute_matrix(n, &A[0], &local_A, comm);
+
     distribute_vector(n, &x[0], &local_x, comm);
 
     // allocate local result space
@@ -492,6 +534,7 @@ void mpi_matrix_vector_mult(const int n, double* A,
 void mpi_jacobi(const int n, double* A, double* b, double* x, MPI_Comm comm,
                 int max_iter, double l2_termination)
 {
+    int rank; MPI_Comm_rank(comm, &rank);
     // distribute the array onto local processors!
     double* local_A = NULL;
     double* local_b = NULL;
