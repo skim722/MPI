@@ -24,7 +24,6 @@
 #include "mpi_jacobi.h"
 #include "utils.h"
 #include "io.h"
-#include <iostream>
 
 /**
  * @brief Creates and returns the square 2d grid communicator for MPI_COMM_WORLD

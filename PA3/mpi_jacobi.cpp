@@ -534,7 +534,6 @@ void mpi_matrix_vector_mult(const int n, double* A,
 void mpi_jacobi(const int n, double* A, double* b, double* x, MPI_Comm comm,
                 int max_iter, double l2_termination)
 {
-    int rank; MPI_Comm_rank(comm, &rank);
     // distribute the array onto local processors!
     double* local_A = NULL;
     double* local_b = NULL;
